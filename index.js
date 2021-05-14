@@ -32,17 +32,7 @@ loom.create = (L, send) => {
     }
 
     L.disconnect = peer => {
-        if (!L.peers[peer]) return
-        var conn = L.peers[peer]
-        delete L.peers[peer]
-
-        var versions = {}
-        var ack_versions = ancestors(L.acked_boundary)
-        Object.keys(L.T).forEach(v => {
-            if (!ack_versions[v] || L.acked_boundary[v]) versions[v] = true
-        })
-
-        L.receive({cmd: 'fissure', fissure: {a: L.id, b: peer, conn, versions, time: Date.now()}})
+        L.receive({cmd: 'disconnect', peer})
     }
 
     L.set = (...patches) => {
@@ -132,6 +122,14 @@ loom.create = (L, send) => {
             if (ancestors(L.acked_boundary)[version]) return
             add_full_ack_leaf(version)
             for (let p of Object.keys(L.peers)) if (p != peer) send(p, {cmd: 'ack2', version})
+        } else if (cmd == 'disconnect') {
+            if (!L.peers[peer]) return
+            let conn = L.peers[peer]
+            delete L.peers[peer]
+    
+            let ack_versions = ancestors(L.acked_boundary)
+            let versions = Object.fromEntries(Object.keys(L.T).filter(v => !ack_versions[v] || L.acked_boundary[v]).map(v => [v, true]))
+            L.receive({cmd: 'fissure', fissure: {a: L.id, b: peer, conn, versions, time: Date.now()}})
         } else if (cmd == 'fissure') {
             var key = fissure.a + ':' + fissure.b + ':' + fissure.conn
             if (!L.fissures[key]) {
